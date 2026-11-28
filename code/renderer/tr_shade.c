@@ -1686,6 +1686,9 @@ static void ComputeColors( shaderStage_t *pStage )
 	case AGEN_LIGHTING_SPECULAR:
 		RB_CalcSpecularAlpha( ( unsigned char * ) tess.svars.colors );
 		break;
+	case AGEN_VIEW_FACING:
+		RB_CalcViewFacingAlpha( ( unsigned char * ) tess.svars.colors, pStage->alphaWave.base, pStage->alphaWave.amplitude );
+		break;
 	case AGEN_ENTITY:
 		RB_CalcAlphaFromEntity( ( unsigned char * ) tess.svars.colors );
 		break;

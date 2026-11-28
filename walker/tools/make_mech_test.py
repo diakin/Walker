@@ -117,6 +117,23 @@ def cylinder(part, group, start, end, radius, sides=10):
     solid(part, group, vertices, faces)
 
 
+def smooth_cylinder(part, group, z_low, z_high, radius, sides=16):
+    """гладкий цилиндр вдоль Z узла (нормали по радиусу, без рамки текстуры): для шейдинга
+    полированного штока по направлению к зрителю (alphaGen viewFacing)"""
+    positions, normals, uvs, faces = [], [], [], []
+    for step in range(sides + 1):
+        angle = 2 * math.pi * step / sides
+        direction = (math.cos(angle), math.sin(angle), 0.0)
+        for z_value in (z_low, z_high):
+            positions.append((direction[0] * radius, direction[1] * radius, z_value))
+            normals.append(direction)
+            uvs.append((0.5, 0.5))
+    for step in range(sides):
+        first = step * 2
+        faces += [(first, first + 2, first + 1), (first + 1, first + 2, first + 3)]
+    part.add(group, positions, normals, uvs, faces)
+
+
 def beam(part, group, start, end, width, depth):
     """брус от start до end, сечение width (поперёк, по Y) x depth"""
     start = np.asarray(start, float); end = np.asarray(end, float)
@@ -312,7 +329,7 @@ def actuator_parts(actuators, lengths):
         barrel.part = robots.Part()
         cylinder(barrel.part, 'barrel', (0, 0, barrel_above), (0, 0, -barrel_below), 0.075 * SCALE, 10)
         rod.part = robots.Part()
-        cylinder(rod.part, 'rod', (0, 0, -0.4), (0, 0, rod_length), 0.038 * SCALE, 8)
+        smooth_cylinder(rod.part, 'rod', -0.4, rod_length, 0.038 * SCALE, 16)
     return shortest, longest, barrel_length, rod_length
 
 
@@ -428,9 +445,12 @@ def write_materials(folder, part_materials):
                 os.path.join(folder, f'{material}.tga'))
             shader = f'models/players/{NAME}/{material}'
             stages = f'\t{{\n\t\tmap {shader}.tga\n\t\trgbGen lightingDiffuse\n\t}}\n'
-            if group in SHINY:      # хромированный шток: блик и отражение неба (карта окружения K7)
-                stages += ('\t{\n\t\tmap models/players/walker/env_shine.jpg\n\t\ttcGen environment\n'
-                           '\t\tblendFunc GL_ONE GL_ONE\n\t\trgbGen const ( 0.8 0.8 0.8 )\n\t}\n')
+            if group in SHINY:      # полированный шток: середина к зрителю яркая, к краям темнее (как у K7)
+                stages += ('\t{\n\t\tmap $whiteimage\n\t\tblendFunc GL_ZERO GL_SRC_ALPHA\n\t\talphaGen viewFacing 0.1 1.6\n\t}\n'
+                           '\t{\n\t\tmap $whiteimage\n\t\tblendFunc GL_SRC_ALPHA GL_ONE\n\t\trgbGen const ( 0.5 0.5 0.49 )\n'
+                           '\t\talphaGen viewFacing 0 4\n\t}\n'
+                           '\t{\n\t\tmap $whiteimage\n\t\tblendFunc GL_SRC_ALPHA GL_ONE\n\t\trgbGen const ( 0.9 0.9 0.88 )\n'
+                           '\t\talphaGen viewFacing 0 30\n\t}\n')
             shaders.append(f'{shader}\n{{\n{stages}}}\n')
     # окраски команд и ботов (desert, urban - make_botfiles.py): у пробной модели все одинаковые
     for scheme in robots.SCHEMES + ('desert', 'urban'):

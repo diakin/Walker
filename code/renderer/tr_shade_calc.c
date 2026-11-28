@@ -1084,6 +1084,34 @@ long myftol( float f ) {
 #endif
 
 /*
+** RB_CalcViewFacingAlpha
+**
+** WALKER (28.11.2026): alpha = minimum + ( 1 - minimum ) * dot( normal, viewer ) ^ exponent.
+** A polished cylinder seen from anywhere: bright where it faces the viewer, darker to the
+** edges, whatever the light does (environment mapping goes by the model axes, not the view)
+*/
+void RB_CalcViewFacingAlpha( unsigned char *alphas, float minimum, float exponent ) {
+	int		i;
+	float	*v, *normal;
+	vec3_t	viewer;
+	float	d, value;
+
+	v = tess.xyz[0];
+	normal = tess.normal[0];
+	alphas += 3;
+	for ( i = 0 ; i < tess.numVertexes ; i++, v += 4, normal += 4, alphas += 4 ) {
+		VectorSubtract( backEnd.or.viewOrigin, v, viewer );
+		VectorNormalizeFast( viewer );
+		d = DotProduct( normal, viewer );
+		if ( d < 0 ) {
+			d = 0;
+		}
+		value = minimum + ( 1 - minimum ) * pow( d, exponent );
+		*alphas = (unsigned char)( Com_Clamp( 0, 1, value ) * 255 );
+	}
+}
+
+/*
 ** RB_CalcSpecularAlpha
 **
 ** Calculates specular coefficient and places it in the alpha channel

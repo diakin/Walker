@@ -229,16 +229,6 @@ def model_shaders():
     level = np.clip(np.exp(-distance / 0.0003) + 0.3 * np.exp(-distance / 0.003), 0, 1)
     image = np.stack([level * 255, level * 252, level * 245], axis=-1)
     Image.fromarray(image.astype(np.uint8)).save(os.path.join(target, 'env_glint.jpg'), quality=95)
-    # блик полированного штока (28.11.2026): на чёрном узкая вертикальная полоса чуть левее
-    # середины карты. На цилиндре окружение по поперечному наклону нормали идёт по s, вдоль
-    # штока почти не меняется - полоса ложится узкой яркой линией вдоль штока
-    size = 256
-    y, x = np.mgrid[0:size, 0:size] / (size - 1)
-    across = x - 0.40
-    level = np.exp(-(across / 0.008) ** 2) + 0.25 * np.exp(-(across / 0.035) ** 2)
-    level = np.clip(level * (0.7 + 0.3 * np.clip(1.3 - y, 0, 1)), 0, 1)
-    image = np.stack([level * 255, level * 253, level * 248], axis=-1)
-    Image.fromarray(image.astype(np.uint8)).save(os.path.join(target, 'env_streak.jpg'), quality=95)
 
 
 def main():

@@ -38,7 +38,6 @@ ROBOT = os.path.basename(os.path.normpath(MODEL_DIR))
 SHADER_PREFIX = 'models/players/' + ROBOT
 ENV_SHINE = 'models/players/walker/env_shine.jpg'
 ENV_GLINT = 'models/players/walker/env_glint.jpg'
-ENV_STREAK = 'models/players/walker/env_streak.jpg'   # узкий блик полированного штока
 PARTS = {'lower': 1024, 'upper': 1024, 'head': 512}
 # K7 - главный робот: атласы вдвое крупнее (2048), каждая точка - один тексель
 # (столько же выборок, сколько у 1024 с SUPERSAMPLE 2), подробный износ (26.11.2026)
@@ -996,8 +995,10 @@ def read_skin(path):
 
 
 def material_class(name):
-    # полированные штоки (28.11.2026): свой шейдер с узким ярким бликом (ENV_STREAK); в общий
-    # проход материалов (make_material_pass.py) не входит, рисуется своими слоями
+    # полированные штоки (28.11.2026): свой шейдер - как у полированного цилиндра, с какой
+    # стороны ни смотри: середина, обращённая к зрителю, яркая, к краям плавно темнее
+    # (alphaGen viewFacing, renderer/tr_shade_calc.c: к краям темнеет до 0.1, по середине
+    # широкий мягкий блеск и узкий яркий блик); в общий проход материалов (make_material_pass.py) не входит
     if name in HYDRAULIC:
         return 'polished'
     if name in GLOWING:
@@ -1102,15 +1103,21 @@ def write_shaders(parts):
 		rgbGen lightingDiffuse
 	}}
 	{{
-		map {ENV_SHINE}
-		tcGen environment
-		blendFunc GL_DST_COLOR GL_ONE
-		rgbGen const ( 0.70 0.70 0.70 )
+		map $whiteimage
+		blendFunc GL_ZERO GL_SRC_ALPHA
+		alphaGen viewFacing 0.1 1.6
 	}}
 	{{
-		map {ENV_STREAK}
-		tcGen environment
-		blendFunc GL_ONE GL_ONE
+		map $whiteimage
+		blendFunc GL_SRC_ALPHA GL_ONE
+		rgbGen const ( 0.5 0.5 0.49 )
+		alphaGen viewFacing 0 4
+	}}
+	{{
+		map $whiteimage
+		blendFunc GL_SRC_ALPHA GL_ONE
+		rgbGen const ( 0.9 0.9 0.88 )
+		alphaGen viewFacing 0 30
 	}}
 }}""")
     path = os.path.join(DATA_ROOT, 'scripts', f'{ROBOT}_player.shader')

@@ -188,7 +188,8 @@ typedef enum {
 	AGEN_LIGHTING_SPECULAR,
 	AGEN_WAVEFORM,
 	AGEN_PORTAL,
-	AGEN_CONST
+	AGEN_CONST,
+	AGEN_VIEW_FACING		// WALKER: min + ( 1 - min ) * dot( normal, viewer ) ^ exponent (alphaWave.base, .amplitude)
 } alphaGen_t;
 
 typedef enum {
@@ -1641,6 +1642,7 @@ void	RB_CalcStretchTexCoords( const waveForm_t *wf, float *texCoords );
 void	RB_CalcColorFromEntity( unsigned char *dstColors );
 void	RB_CalcColorFromOneMinusEntity( unsigned char *dstColors );
 void	RB_CalcSpecularAlpha( unsigned char *alphas );
+void	RB_CalcViewFacingAlpha( unsigned char *alphas, float minimum, float exponent );
 void	RB_CalcDiffuseColor( unsigned char *colors );
 
 /*

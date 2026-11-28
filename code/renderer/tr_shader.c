@@ -936,6 +936,16 @@ static qboolean ParseStage( shaderStage_t *stage, char **text )
 			{
 				stage->alphaGen = AGEN_LIGHTING_SPECULAR;
 			}
+			else if ( !Q_stricmp( token, "viewFacing" ) )
+			{
+				// WALKER: "alphaGen viewFacing <minimum> <exponent>" - how squarely the surface
+				// faces the viewer (polished rods: bright middle, darker towards the edges)
+				stage->alphaGen = AGEN_VIEW_FACING;
+				token = COM_ParseExt( text, qfalse );
+				stage->alphaWave.base = token[0] ? atof( token ) : 0;
+				token = COM_ParseExt( text, qfalse );
+				stage->alphaWave.amplitude = token[0] ? atof( token ) : 1;
+			}
 			else if ( !Q_stricmp( token, "oneMinusVertex" ) )
 			{
 				stage->alphaGen = AGEN_ONE_MINUS_VERTEX;
