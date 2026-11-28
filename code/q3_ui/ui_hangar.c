@@ -9,7 +9,11 @@ with the left mouse button (left/right - turn, up/down - tilt), drag with the
 right button (roll), arrow keys and PgUp/PgDn; the key light (LIGHT: ON, with
 shadows of the parts on each other and on the floor) moves with the middle
 button or Shift and the left one; HOME or "RESET VIEW" puts it
-back, the wheel zooms.
+back, the wheel zooms. With the key light on, the top left corner of the preview
+has two sliders - the strength of the key light and of the ambient light (the
+shadows are as dark as the ambient light is weak) - and a dial seen from above with
+the camera at the bottom: the arrow goes from the light to the robot, dragging in
+the dial puts the light there (at the rim low, at the centre overhead).
 
 On the right: the characteristics of the robot, its weapon slots (a slot takes
 a weapon of its class: light, medium or heavy, bg_robots.c) and the selected
@@ -61,6 +65,22 @@ This file is part of WALKER, based on the Quake III Arena source code
 #define LIGHT_DEFAULT_PITCH	50
 #define LIGHT_MIN_PITCH		25
 #define LIGHT_MAX_PITCH		88
+
+// light controls in the top left corner of the preview (with LIGHT: ON)
+#define LIGHTUI_X			( PREVIEW_X + 8 )
+#define LIGHTUI_Y			( PREVIEW_Y + 8 )
+#define LIGHTUI_W			112
+#define SLIDER_W			80
+#define SLIDER_H			6
+#define SLIDER_KEY_Y		( LIGHTUI_Y + 13 )
+#define SLIDER_AMBIENT_Y	( LIGHTUI_Y + 37 )
+#define DIAL_X				( LIGHTUI_X + 52 )
+#define DIAL_Y				( LIGHTUI_Y + 96 )
+#define DIAL_R				28
+#define LIGHT_NONE			0
+#define LIGHT_KEY			1		// dragging the key light slider
+#define LIGHT_AMBIENT		2
+#define LIGHT_DIAL			3
 #define TURN_SPEED			20.0f	// degrees per second of the automatic turn
 #define KEY_STEP			10.0f
 
@@ -146,6 +166,7 @@ typedef struct {
 	qboolean		lighting;		// middle button or Shift + left: the key light
 	float			lightYaw;
 	float			lightPitch;
+	int				lightControl;	// LIGHT_KEY, LIGHT_AMBIENT, LIGHT_DIAL: dragging it
 	float			dragLastX;
 	float			dragLastY;
 	qhandle_t		backgroundShader;
@@ -717,6 +738,158 @@ static void Hangar_DrawButton( void *self ) {
 
 /*
 =================
+Light controls
+
+WALKER (28.11.2026): sliders for the key and ambient light (cvars ui_hangarKey 0..2,
+ui_hangarAmbient 0..1, read by the renderer, tr_light.c) and the light direction dial
+=================
+*/
+static float Hangar_SliderShare( int control ) {
+	if ( control == LIGHT_KEY ) {
+		return Com_Clamp( 0, 1, trap_Cvar_VariableValue( "ui_hangarKey" ) / 2 );
+	}
+	return Com_Clamp( 0, 1, trap_Cvar_VariableValue( "ui_hangarAmbient" ) );
+}
+
+static void Hangar_SetSlider( int control, float share ) {
+	share = Com_Clamp( 0, 1, share );
+	if ( control == LIGHT_KEY ) {
+		trap_Cvar_SetValue( "ui_hangarKey", share * 2 );
+	} else {
+		trap_Cvar_SetValue( "ui_hangarAmbient", share );
+	}
+}
+
+static void Hangar_DrawSlider( int control, int y, const char *label ) {
+	float	share = Hangar_SliderShare( control );
+	float	*color = hangarMenuInfo.lightControl == control ? colorWhite : hangarAccentColor;
+
+	Hangar_Text( LIGHTUI_X, y - 11, label, UI_LEFT, hangarTextColor );
+	Hangar_Text( LIGHTUI_X + SLIDER_W + 22, y - 3, va( "%i%%", (int)( share * ( control == LIGHT_KEY ? 200 : 100 ) + 0.5f ) ),
+		UI_RIGHT, hangarDimColor );
+	UI_FillRect( LIGHTUI_X, y, SLIDER_W, SLIDER_H, hangarBarColor );
+	UI_FillRect( LIGHTUI_X, y, SLIDER_W * share, SLIDER_H, color );
+	UI_DrawRect( LIGHTUI_X, y, SLIDER_W, SLIDER_H, hangarBorderColor );
+	UI_FillRect( LIGHTUI_X + SLIDER_W * share - 2, y - 2, 4, SLIDER_H + 4, colorWhite );
+}
+
+static void Hangar_Dot( float x, float y, float size, float *color ) {
+	UI_FillRect( x - size / 2, y - size / 2, size, size, color );
+}
+
+static void Hangar_Segment( float x0, float y0, float x1, float y1, float *color ) {
+	float	length = sqrt( ( x1 - x0 ) * ( x1 - x0 ) + ( y1 - y0 ) * ( y1 - y0 ) );
+	int		steps = (int)length + 1, step;
+
+	for ( step = 0 ; step <= steps ; step++ ) {
+		Hangar_Dot( x0 + ( x1 - x0 ) * step / steps, y0 + ( y1 - y0 ) * step / steps, 1.5f, color );
+	}
+}
+
+/*
+the dial: seen from above, the camera at the bottom, the robot in the middle; the
+light at the yaw angle, as far from the middle as its pitch is low (overhead - the
+middle, 25 degrees - nearly the rim)
+*/
+static void Hangar_LightPoint( float *x, float *y ) {
+	float	reach = cos( DEG2RAD( hangarMenuInfo.lightPitch ) ) * DIAL_R;
+
+	*x = DIAL_X + sin( DEG2RAD( hangarMenuInfo.lightYaw ) ) * reach;
+	*y = DIAL_Y + cos( DEG2RAD( hangarMenuInfo.lightYaw ) ) * reach;
+}
+
+static void Hangar_SetLightFromDial( float x, float y ) {
+	float	dx = x - DIAL_X, dy = y - DIAL_Y;
+	float	share = sqrt( dx * dx + dy * dy ) / DIAL_R;
+
+	if ( share > 1 ) {
+		share = 1;
+	}
+	if ( dx * dx + dy * dy > 1 ) {
+		hangarMenuInfo.lightYaw = AngleNormalize180( RAD2DEG( atan2( dx, dy ) ) );
+	}
+	hangarMenuInfo.lightPitch = Com_Clamp( LIGHT_MIN_PITCH, LIGHT_MAX_PITCH, RAD2DEG( atan2( sqrt( 1 - share * share ), share ) ) );	// acos: not in the QVM library
+}
+
+static void Hangar_DrawLightControls( void ) {
+	static vec4_t	sunColor = { 1.0f, 0.92f, 0.45f, 1.0f };
+	float			lightX, lightY, dx, dy, length;
+	int				step;
+
+	if ( !trap_Cvar_VariableValue( "ui_hangarLight" ) ) {
+		return;
+	}
+	UI_FillRect( LIGHTUI_X - 5, LIGHTUI_Y - 4, LIGHTUI_W + 10, DIAL_Y + DIAL_R + 18 - LIGHTUI_Y, hangarPanelColor );
+	Hangar_DrawSlider( LIGHT_KEY, SLIDER_KEY_Y, "KEY LIGHT" );
+	Hangar_DrawSlider( LIGHT_AMBIENT, SLIDER_AMBIENT_Y, "AMBIENT" );
+	Hangar_Text( LIGHTUI_X, DIAL_Y - DIAL_R - 14, "LIGHT FROM", UI_LEFT, hangarTextColor );
+	for ( step = 0 ; step < 48 ; step++ ) {
+		float	angle = 2 * M_PI * step / 48;
+		Hangar_Dot( DIAL_X + cos( angle ) * DIAL_R, DIAL_Y + sin( angle ) * DIAL_R, 2,
+			hangarMenuInfo.lightControl == LIGHT_DIAL ? colorWhite : hangarBorderColor );
+	}
+	Hangar_Dot( DIAL_X, DIAL_Y, 4, hangarDimColor );						// the robot
+	Hangar_Text( DIAL_X, DIAL_Y + DIAL_R + 3, "CAMERA", UI_CENTER, hangarDimColor );
+	Hangar_LightPoint( &lightX, &lightY );
+	dx = DIAL_X - lightX; dy = DIAL_Y - lightY;
+	length = sqrt( dx * dx + dy * dy );
+	if ( length > 6 ) {
+		// the arrow from the light to the robot, the head at the robot
+		float	ux = dx / length, uy = dy / length;
+		float	tipX = DIAL_X - ux * 3, tipY = DIAL_Y - uy * 3;
+		Hangar_Segment( lightX, lightY, tipX, tipY, sunColor );
+		Hangar_Segment( tipX, tipY, tipX - ux * 7 + uy * 4, tipY - uy * 7 - ux * 4, sunColor );
+		Hangar_Segment( tipX, tipY, tipX - ux * 7 - uy * 4, tipY - uy * 7 + ux * 4, sunColor );
+	}
+	Hangar_Dot( lightX, lightY, 6, sunColor );
+	Hangar_Text( LIGHTUI_X + LIGHTUI_W, DIAL_Y - DIAL_R - 14, va( "%i DEG", (int)hangarMenuInfo.lightPitch ), UI_RIGHT, hangarDimColor );
+}
+
+/*
+a click on a light control: qtrue - taken (no turning of the robot)
+*/
+static qboolean Hangar_LightControlClick( void ) {
+	float	dx, dy;
+
+	if ( !trap_Cvar_VariableValue( "ui_hangarLight" ) ) {
+		return qfalse;
+	}
+	if ( uis.cursorx >= LIGHTUI_X - 4 && uis.cursorx <= LIGHTUI_X + SLIDER_W + 4 ) {
+		if ( uis.cursory >= SLIDER_KEY_Y - 5 && uis.cursory <= SLIDER_KEY_Y + SLIDER_H + 5 ) {
+			hangarMenuInfo.lightControl = LIGHT_KEY;
+			return qtrue;
+		}
+		if ( uis.cursory >= SLIDER_AMBIENT_Y - 5 && uis.cursory <= SLIDER_AMBIENT_Y + SLIDER_H + 5 ) {
+			hangarMenuInfo.lightControl = LIGHT_AMBIENT;
+			return qtrue;
+		}
+	}
+	dx = uis.cursorx - DIAL_X; dy = uis.cursory - DIAL_Y;
+	if ( dx * dx + dy * dy <= ( DIAL_R + 5 ) * ( DIAL_R + 5 ) ) {
+		hangarMenuInfo.lightControl = LIGHT_DIAL;
+		return qtrue;
+	}
+	return qfalse;
+}
+
+static void Hangar_UpdateLightControl( void ) {
+	if ( hangarMenuInfo.lightControl == LIGHT_NONE ) {
+		return;
+	}
+	if ( !trap_Key_IsDown( K_MOUSE1 ) ) {
+		hangarMenuInfo.lightControl = LIGHT_NONE;
+		return;
+	}
+	if ( hangarMenuInfo.lightControl == LIGHT_DIAL ) {
+		Hangar_SetLightFromDial( uis.cursorx, uis.cursory );
+	} else {
+		Hangar_SetSlider( hangarMenuInfo.lightControl, ( uis.cursorx - LIGHTUI_X ) / (float)SLIDER_W );
+	}
+}
+
+
+/*
+=================
 Hangar_DrawPreview
 =================
 */
@@ -735,6 +908,7 @@ static void Hangar_DrawPreview( void *self ) {
 	UI_DrawPlayer( PREVIEW_X, PREVIEW_Y, PREVIEW_W, PREVIEW_H - 24, player, uis.realtime / 2 );
 	uiPlayerOrbit = qfalse;
 	uiPlayerStudioLight = qfalse;
+	Hangar_DrawLightControls();
 }
 
 
@@ -802,6 +976,7 @@ static void Hangar_Draw( void ) {
 	if ( hangarMenuInfo.lighting && !trap_Key_IsDown( K_MOUSE3 ) && !trap_Key_IsDown( K_MOUSE1 ) ) {
 		hangarMenuInfo.lighting = qfalse;
 	}
+	Hangar_UpdateLightControl();
 	if ( hangarMenuInfo.lighting ) {
 		// the light goes the way the mouse does; not lower than 25 degrees (the
 		// shadow volumes must reach the floor) and not past the top
@@ -846,7 +1021,7 @@ static void Hangar_Draw( void ) {
 	UI_FillRect( 0, BOTTOM_Y, SCREEN_WIDTH, 1, hangarRuleColor );
 	Hangar_Text( 630, BOTTOM_Y + 10, va( "%i of %i robots ready for battle", UI_AccountAvailableRobots(), uiAccount.numRobots ),
 		UI_RIGHT, hangarDimColor );
-	Hangar_Text( 630, BOTTOM_Y + 26, "LMB: turn  RMB: roll  MMB / SHIFT+LMB: light  wheel: zoom", UI_RIGHT, hangarDimColor );
+	Hangar_Text( 630, BOTTOM_Y + 26, "LMB: turn  RMB: roll  MMB / SHIFT+LMB / dial: light  wheel: zoom", UI_RIGHT, hangarDimColor );
 
 	Menu_Draw( &hangarMenuInfo.menu );
 }
@@ -864,6 +1039,10 @@ static sfxHandle_t Hangar_Key( int key ) {
 	case K_MOUSE3:
 		if ( uis.cursorx >= PREVIEW_X && uis.cursorx <= PREVIEW_X + PREVIEW_W &&
 			uis.cursory >= PREVIEW_Y && uis.cursory <= PREVIEW_Y + PREVIEW_H - 24 ) {
+			if ( key == K_MOUSE1 && Hangar_LightControlClick() ) {
+				Hangar_UpdateLightControl();
+				return 0;
+			}
 			if ( key == K_MOUSE3 || ( key == K_MOUSE1 && trap_Key_IsDown( K_SHIFT ) ) ) {
 				hangarMenuInfo.lighting = qtrue;
 			} else if ( key == K_MOUSE1 ) {

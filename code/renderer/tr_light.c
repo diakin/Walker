@@ -279,10 +279,35 @@ Calculates all the lighting values that will be used
 by the Calc_* functions
 =================
 */
-// WALKER: the hangar key light (RDF_STUDIOLIGHT): ambient (the minimum add of 32 comes
-// on top) and the directed light at the colour 1
-#define	STUDIO_AMBIENT		52
+// WALKER: the hangar key light (RDF_STUDIOLIGHT): ambient and directed light from the
+// hangar sliders (28.11.2026; before: ambient 52 + the minimum add 32 = 84, directed 200):
+// ambient STUDIO_AMBIENT_FULL x ui_hangarAmbient (0..1, default 0.28 = 45, deeper shadows),
+// directed STUDIO_DIRECTED x ui_hangarKey (0..2, default 1); no minimum add
+#define	STUDIO_AMBIENT_FULL	160
 #define	STUDIO_DIRECTED		200
+
+static float R_StudioAmbient( void ) {
+	return STUDIO_AMBIENT_FULL * Com_Clamp( 0, 1, r_studioAmbient->value );
+}
+
+static float R_StudioDirected( void ) {
+	return STUDIO_DIRECTED * Com_Clamp( 0, 2, r_studioKey->value );
+}
+
+/*
+the hangar shadow darkening (tr_shadows.c, RB_ShadowFinish): in a shadow only the
+ambient light is left, so the colour there is ambient / (ambient + directed); the
+directed light at 0.75 - the mean slope of the lit faces
+*/
+float R_StudioShadowFactor( void ) {
+	float	ambient = R_StudioAmbient();
+	float	directed = R_StudioDirected() * 0.75f;
+
+	if ( ambient + directed < 1 ) {
+		return 0.5f;
+	}
+	return Com_Clamp( 0.12f, 0.9f, ambient / ( ambient + directed ) );
+}
 
 void R_SetupEntityLighting( const trRefdef_t *refdef, trRefEntity_t *ent ) {
 	int				i;
@@ -329,8 +354,8 @@ void R_SetupEntityLighting( const trRefdef_t *refdef, trRefEntity_t *ent ) {
 		// and the shadows can be seen
 		dl = &refdef->dlights[0];
 		ent->ambientLight[0] = ent->ambientLight[1] =
-			ent->ambientLight[2] = tr.identityLight * STUDIO_AMBIENT;
-		VectorScale( dl->color, tr.identityLight * STUDIO_DIRECTED, ent->directedLight );
+			ent->ambientLight[2] = tr.identityLight * R_StudioAmbient();
+		VectorScale( dl->color, tr.identityLight * R_StudioDirected(), ent->directedLight );
 		VectorSubtract( dl->origin, lightOrigin, ent->lightDir );
 		VectorNormalize( ent->lightDir );
 		firstDlight = 1;
@@ -343,7 +368,7 @@ void R_SetupEntityLighting( const trRefdef_t *refdef, trRefEntity_t *ent ) {
 	}
 
 	// bonus items and view weapons have a fixed minimum add
-	if ( 1 /* ent->e.renderfx & RF_MINLIGHT */ ) {
+	if ( firstDlight == 0 /* ent->e.renderfx & RF_MINLIGHT */ ) {	// WALKER: not in the hangar
 		// give everything a minimum light add
 		ent->ambientLight[0] += tr.identityLight * 32;
 		ent->ambientLight[1] += tr.identityLight * 32;

@@ -700,7 +700,14 @@ void RB_ShadowFinish( qboolean sunShadows ) {
 
     qglLoadIdentity ();
 
-	qglColor3f( 0.6f, 0.6f, 0.6f );
+	// WALKER: in the hangar as dark as the sliders make it (only the ambient light is left
+	// in a shadow, tr_light.c)
+	if ( backEnd.refdef.rdflags & RDF_STUDIOLIGHT ) {
+		float	factor = R_StudioShadowFactor();
+		qglColor3f( factor, factor, factor );
+	} else {
+		qglColor3f( 0.6f, 0.6f, 0.6f );
+	}
 	GL_State( GLS_DEPTHMASK_TRUE | GLS_SRCBLEND_DST_COLOR | GLS_DSTBLEND_ZERO );
 
 //	qglColor3f( 1, 0, 0 );

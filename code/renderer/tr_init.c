@@ -99,6 +99,8 @@ cvar_t	*r_lightmap;
 cvar_t	*r_vertexLight;
 cvar_t	*r_uiFullScreen;
 cvar_t	*r_shadows;
+cvar_t	*r_studioKey;			// WALKER: hangar key light, 0..2 (ui_hangarKey)
+cvar_t	*r_studioAmbient;		// WALKER: hangar ambient light, 0..1 (ui_hangarAmbient)
 cvar_t	*r_flares;
 cvar_t	*r_mode;
 cvar_t	*r_nobind;
@@ -1031,6 +1033,9 @@ void R_Register( void )
 	r_simpleModels = ri.Cvar_Get ("r_simpleModels", "0", CVAR_ARCHIVE);
 	ri.Cvar_Get( "r_sunDirection", "", CVAR_ROM );	// WALKER: set at map load (tr_bsp.c)
 	r_shadows = ri.Cvar_Get( "cg_shadows", "1", 0 );
+	// WALKER: the hangar sliders (q3_ui/ui_hangar.c) set these; the same names and defaults there
+	r_studioKey = ri.Cvar_Get( "ui_hangarKey", "1", CVAR_ARCHIVE );
+	r_studioAmbient = ri.Cvar_Get( "ui_hangarAmbient", "0.28", CVAR_ARCHIVE );
 
 	r_maxpolys = ri.Cvar_Get( "r_maxpolys", va("%d", MAX_POLYS), 0);
 	r_maxpolyverts = ri.Cvar_Get( "r_maxpolyverts", va("%d", MAX_POLYVERTS), 0);
