@@ -27,6 +27,7 @@ ROD_OVERLAP, при самом коротком его верх остаётся
 import sys, math
 import numpy as np
 import k7_hydraulics as base
+import rod_shader
 
 UPPER_PIN = (-0.05, -0.55)          # (y, z) в пространстве бедра: в коробе у тазобедренного шарнира
 LOWER_PIN = (-0.40, -0.25)          # (y, z) в пространстве колена (голени): сзади под коленом
@@ -157,11 +158,11 @@ def build_parts(barrel_below, rod_length):
     base.cylinder(get('barrel', 'hydraulic_blue'), 'y', (0, 0, 0), BARREL_RADIUS, BARREL_ABOVE, -(barrel_below - 0.03), (True, False))
     base.cylinder(get('barrel', 'metal_dark'), 'y', (0, 0, 0), BARREL_RADIUS + 0.006, -(barrel_below - 0.03), -barrel_below)
     base.cylinder(get('barrel', 'metal_dark'), 'x', (0, 0, 0), 0.03, -0.09, 0.09)     # палец (в коробе)
-    # шток: проушина, наконечник, полированный шток (24 грани: блик посередине считается в
+    # шток: проушина, наконечник, полированный шток (rod_shader.ROD_MIN_SIDES = 24 грани: блик посередине считается в
     # вершинах, на 10 гранях полоса блика ложилась бы ломаной)
     base.cylinder(get('rod', 'metal_dark'), 'x', (0, 0, 0), 0.05, -0.03, 0.03)
     base.cylinder(get('rod', 'metal_dark'), 'y', (0, 0, 0), 0.05, 0.035, 0.11, (False, True))
-    segments, base.SEGMENTS = base.SEGMENTS, 24
+    segments, base.SEGMENTS = base.SEGMENTS, rod_shader.ROD_MIN_SIDES
     base.cylinder(get('rod', 'chrome'), 'y', (0, 0, 0), ROD_RADIUS, 0.11, rod_length, (False, True))
     base.SEGMENTS = segments
     # проушина на задней грани голени: подошва (заходит в грань), две щеки, палец

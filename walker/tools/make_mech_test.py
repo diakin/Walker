@@ -30,6 +30,7 @@ from PIL import Image, ImageDraw
 
 import make_robots as robots
 import mech_blockout as blockout
+import rod_shader
 
 SCALE = robots.ROBOT_SCALE                  # 14 единиц Quake в единице модели
 NAME = 'mech'
@@ -329,7 +330,7 @@ def actuator_parts(actuators, lengths):
         barrel.part = robots.Part()
         cylinder(barrel.part, 'barrel', (0, 0, barrel_above), (0, 0, -barrel_below), 0.075 * SCALE, 10)
         rod.part = robots.Part()
-        smooth_cylinder(rod.part, 'rod', -0.4, rod_length, 0.038 * SCALE, 16)
+        smooth_cylinder(rod.part, 'rod', -0.4, rod_length, 0.038 * SCALE, rod_shader.ROD_MIN_SIDES)
     return shortest, longest, barrel_length, rod_length
 
 
@@ -446,11 +447,7 @@ def write_materials(folder, part_materials):
             shader = f'models/players/{NAME}/{material}'
             stages = f'\t{{\n\t\tmap {shader}.tga\n\t\trgbGen lightingDiffuse\n\t}}\n'
             if group in SHINY:      # полированный шток: середина к зрителю яркая, к краям темнее (как у K7)
-                stages += ('\t{\n\t\tmap $whiteimage\n\t\tblendFunc GL_ZERO GL_SRC_ALPHA\n\t\talphaGen viewFacing 0.1 1.6\n\t}\n'
-                           '\t{\n\t\tmap $whiteimage\n\t\tblendFunc GL_SRC_ALPHA GL_ONE\n\t\trgbGen const ( 0.5 0.5 0.49 )\n'
-                           '\t\talphaGen viewFacing 0 4\n\t}\n'
-                           '\t{\n\t\tmap $whiteimage\n\t\tblendFunc GL_SRC_ALPHA GL_ONE\n\t\trgbGen const ( 0.9 0.9 0.88 )\n'
-                           '\t\talphaGen viewFacing 0 30\n\t}\n')
+                stages += rod_shader.rod_stages()
             shaders.append(f'{shader}\n{{\n{stages}}}\n')
     # окраски команд и ботов (desert, urban - make_botfiles.py): у пробной модели все одинаковые
     for scheme in robots.SCHEMES + ('desert', 'urban'):
